@@ -55,15 +55,33 @@ flexbot.addCommand("roll","Roll dice",function(msg,args){
 },["dice"])
 
 flexbot.addCommand("info","It's like a business card in a message",function(msg,args){
+	let uptime = flexbot.bot.uptime
+	let s = uptime/1000
+	let h = parseInt(s/3600)
+	s=s%3600
+	let m = parseInt(s/60)
+	s=s%60
+	s=parseInt(s)
+
+	let tstr = (h < 10 ? "0"+h : h)+":"+(m < 10 ? "0"+m : m)+":"+(s < 10 ? "0"+s : s)
+
 	msg.channel.createMessage({embed:{
 		color:0xEB0763,
 		title:"FlexBot v8",
 		url:"https://flexbox.xyz/flexbot",
 		author:{
 			name:"A bot written by Flex#5917",
-			icon_url:"https://flexbox.xyz/assets/img/Avatar9.png"
+			icon_url:flexbot.bot.users.get(flexbot.oid).avatarURL
 		},
-		description:"**Language**: Javascript\n**Library**: Eris\n\n[GitHub](https://github.com/LUModder/FlexBot) | [Invite](https://discordapp.com/oauth2/authorize?client_id=173441062243663872&scope=bot&permissions=0) | [Server](https://discord.gg/ZcXh4ek)"
+		fields:[
+			{name:"Language",value:"Javascript",inline:true},
+			{name:"Library",value:"Eris",inline:true},
+			{name:"Current Uptime",value:tstr,inline:true},
+			{name:"Servers",value:flexbot.bot.guilds.size,inline:true},
+			{name:"Current Persona",value:"Akane the Fox",inline:true},
+			{name:"Contributors",value:"**KaosHeaven#1812** - Hosting, commands"},
+			{name:"Links",value:"[GitHub](https://github.com/LUModder/FlexBot) | [Invite](https://discordapp.com/oauth2/authorize?client_id=173441062243663872&scope=bot) | [Server](https://discord.gg/ZcXh4ek) | [Donate](https://paypal.me/boxofflex)\n(If you donate message me)"}
+		]
 	}})
 },["about"])
 
@@ -81,11 +99,14 @@ flexbot.addCommand("stats","Oooh, numbers",function(msg,args){
 	let cmdcount = 0
 	for(c in flexbot.cmds){cmdcount++}
 
-	msg.channel.createMessage("```ini\n; FlexBot Stats\nservers = "+flexbot.bot.guilds.size+"\ncommands = "+cmdcount+"\n[Uptime: "+tstr+"]\n```")
+	msg.channel.createMessage("```ini\n; FlexBot Stats\nservers = "+flexbot.bot.guilds.size+"\ncommands = "+cmdcount+"\nusers = "+flexbot.bot.users.size+"\n[Uptime: "+tstr+"]\n```")
 })
 
 flexbot.addCommand("invite","Invite FlexBot to your server!",function(msg,args){
-	msg.channel.createMessage("Invite me with this link: https://discordapp.com/oauth2/authorize?client_id=173441062243663872&scope=bot&permissions=0")
+	msg.channel.createMessage({embed:{
+		title:"Invites",
+		description:"[Minimal](https://discordapp.com/oauth2/authorize?client_id=173441062243663872&scope=bot) | [With Permissions](https://discordapp.com/oauth2/authorize?client_id=173441062243663872&scope=bot&permissions=335932486) | [Support Server](https://discord.gg/6Ky2BYY)"
+	}})
 })
 
 flexbot.addCommand("calc","Do maths",function(msg,args){
@@ -99,16 +120,23 @@ flexbot.addCommand("ship","Ship two users.",async function(msg,args){
 	let u2 = {};
 	if(!a[1]){
 		let u = await flexbot.lookupUser(msg,a[0])
-		
+
 		if(u.id == msg.author.id){
 			msg.channel.createMessage(emoji.get(":heart:")+" **"+msg.author.username+"** ships themself with... themself... Sure are lonely, aren't ya... That's okay, you have me. *hugs*")
+		}else if(u.id == "132297363233570816" && msg.author.id == "150745989836308480" || u.id == "150745989836308480" && msg.author.id == "132297363233570816"){
+			msg.channel.createMessage(emoji.get(":green_heart:")+" **"+msg.author.username+"** ships themself with **"+u.username+"** (100% compatibility) "+emoji.get(":yellow_heart:")+"\n(totaly not rigged, trust me.)")
 		}else{
 			msg.channel.createMessage(emoji.get(":heart:")+" **"+msg.author.username+"** ships themself with **"+u.username+"** ("+(Math.floor(Math.random()*100)+1)+"% compatibility)")
 		}
 	}else if(a[1]){
 		u1 = await flexbot.lookupUser(msg,a[0])
 		u2 = await flexbot.lookupUser(msg,a[1])
-		msg.channel.createMessage(emoji.get(":heart:")+" **"+msg.author.username+"** ships **"+u1.username+"** with **"+u2.username+"** ("+(Math.floor(Math.random()*100)+1)+"% compatibility)")
+
+		if(u1.id == "132297363233570816" && u2.id == "150745989836308480" || u2.id == "132297363233570816" && u1.id == "150745989836308480"){
+			msg.channel.createMessage(emoji.get(":green_heart:")+" **"+msg.author.username+"** ships **"+u1.username+"** with **"+u2.username+"** (100% compatibility) "+emoji.get(":yellow_heart:")+"\n(totaly not rigged, trust me.)")
+		}else{
+			msg.channel.createMessage(emoji.get(":heart:")+" **"+msg.author.username+"** ships **"+u1.username+"** with **"+u2.username+"** ("+(Math.floor(Math.random()*100)+1)+"% compatibility)")
+		}
 	}else{
 		msg.channel.createMessage("Not enough arguments.")
 	}
@@ -155,19 +183,6 @@ flexbot.addCommand("dog","The typical picture of a dog command",function(msg,arg
 		}
 	});
 })
-
-flexbot.addCommand("currency","Convert one form of currency to another",function(msg,args){
-	let a = args.split(" ")
-	let request = require("request");
-	request.get("https://www.google.com/finance/converter?a=1&from="+a[0]+"&to="+a[1],function(e,res,body){
-		if(!e && res.statusCode == 200){
-			let amt = body.match(/<span class=bld>(.+)<\/span>/)[1];
-			msg.channel.createMessage("**1 "+a[0].toUpperCase()+"** is equal to **"+amt+"**");
-		}else{
-			msg.channel.createMessage("An error occured, try again later.\n\n```\n"+e+"```")
-		}
-	});
-});
 
 flexbot.addCommand("meirl","Pull a random post from r/me_irl",function(msg,args){
 	let request = require("request");
@@ -229,7 +244,7 @@ flexbot.addCommand("foxgirl","Gets a random image of a foxgirl",function(msg,arg
 			msg.channel.createMessage({content:"awuuuu~",embed:{
 				description:"```"+img.tags+"```",
 				image:{
-					url:"https://im1.ibsear.ch/"+img.path
+					url:"https://"+img.server+".ibsear.ch/"+img.path
 				}
 			}})
 		}else{
@@ -260,4 +275,97 @@ flexbot.addCommand("respects","Press F to pay respects",function(msg,args){
 	msg.channel.createMessage({embed:{
 		description:"<:Respects:269889128768864257> **"+msg.author.username+"** has paid respects"+(args ? " for **"+args+"**" : "")+". <:Respects:269889128768864257>"
 	}})
+});
+
+flexbot.addCommand("ytimg","Get a thumbnail of an image.",function(msg,args){
+	if(args.indexOf("youtube.com") > -1){
+		let id = args.match(/https?:\/\/(www\.)?(m\.)?youtube.com\/watch\?v=(.*)/)[3]
+		
+		msg.channel.createMessage("https://i.ytimg.com/vi/"+id+"/maxresdefault.jpg")
+	}else if(args.indexOf("youtu.be") > -1){
+		let id = args.match(/https?:\/\/(www\.)?youtu\.be\/(.*)/)[2];
+		
+		msg.channel.createMessage("https://i.ytimg.com/vi/"+id+"/maxresdefault.jpg")
+	}else{
+		msg.channel.createMessage("Video not found, be sure it's either a `youtube.com` or `youtu.be` link.");
+	}
+});
+
+flexbot.addCommand("poll","Make a poll.",function(msg,args){
+	if(!args){
+		msg.channel.createMessage("Usage: f!poll topic|option 1|option 2|...");
+	}else{
+		let opt = args.split("|");
+		let topic = opt[0];
+		opt = opt.splice(1,9);
+		
+		if(opt.length <2){
+			msg.channel.createMessage("A minimum of two options are required.");
+		}else{
+		
+			let opts = [];
+		
+			for(let i = 0;i<opt.length;i++){
+				opts.push((i+1)+"\u20e3: "+opt[i]);
+			}
+			msg.channel.createMessage("**"+msg.author.username+"#"+msg.author.discriminator+"** has started a poll:\n**__"+topic+"__**\n"+opts.join("\n"))
+			.then(m=>{
+				for(let i = 0;i<opt.length;i++){
+					setTimeout(()=>{
+						m.addReaction((i+1)+"\u20e3");
+					},750*i);
+				}
+			});
+		}
+	}
+});
+
+let ball = ["It is certain","It is decidedly soWithout a doubt","Yes, definitely","You may rely on it","As I see it, yes","Most likely","Outlook good","Yes","Signs point to yes","Reply hazy try again","Ask again later","Better not tell you now","Cannot predict now","Concentrate and ask again","Don't count on it","My reply is no","My sources say noOutlook not so good","Very doubtful"]
+
+flexbot.addCommand("8ball","Am I a typical bot yet?",function(msg,args){
+	msg.channel.createMessage(emoji.get("8ball")+" "+ball[Math.floor(Math.random()*ball.length)]);
+});
+
+flexbot.addCommand("akane","Gets a random image of Akane",function(msg,args){
+	request.get("https://ibsear.ch/api/v1/images.json?q=akane_(naomi)%20"+blacklist.join("%20")+"&limit=75&shuffle=20",function(err,res,body){
+		if(!err && res.statusCode == 200){
+			let data = JSON.parse(body);
+			let img = data[Math.floor(Math.random()*data.length)]
+			
+			msg.channel.createMessage({embed:{
+				description:"```"+img.tags+"```",
+				image:{
+					url:"https://"+img.server+".ibsear.ch/"+img.path
+				}
+			}})
+		}else{
+			msg.channel.createMessage("An error occured, try again later.")
+		}
+	});
+});
+
+flexbot.addCommand("braixen","Gets a random image of Braixen",function(msg,args){
+	request.get("https://ibsear.ch/api/v1/images.json?q=braixen%20"+blacklist.join("%20")+"&limit=75&shuffle=20",function(err,res,body){
+		if(!err && res.statusCode == 200){
+			let data = JSON.parse(body);
+			let img = data[Math.floor(Math.random()*data.length)]
+			
+			msg.channel.createMessage({embed:{
+				description:"```"+img.tags+"```",
+				image:{
+					url:"https://"+img.server+".ibsear.ch/"+img.path
+				},
+				footer:{
+					icon_url:"http://i.imgur.com/JhRkEs3.png",
+					text:"Kyuu~"
+				}
+			}})
+		}else{
+			msg.channel.createMessage("An error occured, try again later.")
+		}
+	});
+});
+
+flexbot.addCommand("brianna","owo",function(msg,args){
+	msg.channel.createMessage("is cute. "+emoji.get("yellow_heart"))
 });

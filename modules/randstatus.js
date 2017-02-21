@@ -6,8 +6,8 @@ let randStatus = function(){
 	for(c in flexbot.cmds){cmds++};
 	var slist = [
 		"on "+flexbot.bot.guilds.size+" servers.",
-		flexbot.prefix2+"help",
-		"flexbox.xyz",
+		flexbot.prefix+"help",
+		emoji.get("floppy_disk")+".cf",
 		"with "+cmds+" commands.",
 		"with "+flexbot.bot.users.size+" users."
 	]

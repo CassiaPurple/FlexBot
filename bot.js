@@ -4,11 +4,15 @@ var whitelist = require("./whitelist.json");
 global.flexbot = {};
 const flexbot = global.flexbot
 flexbot.bot = new Eris(config.token);
-flexbot.prefix = "flexbot.";
-flexbot.prefix2 = "f!";
+flexbot.prefix = "f!";
 flexbot.oid = config.ownerid;
 flexbot.dbotsapi = config.dbotsapi;
 flexbot.carbonkey = config.carbonkey;
+flexbot.gapikey = config.gapikey;
+
+Object.defineProperty(Eris.Message.prototype, "guild", {
+    get: function() { return this.channel.guild; }
+});
 
 var request = require('request')
 var util = require("util");
@@ -16,7 +20,6 @@ var fs = require("fs");
 var path = require("path");
 var emoji = require("node-emoji");
 var reload = require("require-reload")(require);
-var markov = require("libmarkov");
 
 var bot = flexbot.bot
 bot.on("ready", () => {
@@ -52,7 +55,7 @@ function logCommand(cmd,msg,args){
 			{name:"Command",value:cmd,inline:true},
 			{name:"Arguments",value:args ? args : "none",inline:true},
 			{name:"User ID",value:""+msg.author.id,inline:true},
-			{name:msg.guild ? msg.guild.name : "Private Message",value:msg.guild ? ""+msg.guild.id : ""+msg.author.id,inline:true},
+			{name:msg.channel.guild ? msg.channel.guild.name : "Private Message",value:msg.channel.guild ? msg.channel.guild.name : ""+msg.author.id,inline:true},
 			{name:msg.channel.name ? "#"+msg.channel.name : msg.author.username,value:""+msg.channel.id,inline:true}
 		],
 		footer:{
@@ -60,7 +63,7 @@ function logCommand(cmd,msg,args){
 			icon_url:"https://raw.githubusercontent.com/twitter/twemoji/gh-pages/36x36/1f552.png"
 		},
 		thumbnail:{
-			url:msg.guild ? "https://cdn.discordapp.com/icons/"+msg.guild.id+"/"+msg.guild.icon+".jpg" : "https://cdnjs.cloudflare.com/ajax/libs/twemoji/2.2.3/2/72x72/1f5e8.png"
+			url:msg.channel.guild ? "https://cdn.discordapp.com/icons/"+msg.channel.guild.id+"/"+msg.channel.guild.icon+".jpg" : "https://cdnjs.cloudflare.com/ajax/libs/twemoji/2.2.3/2/72x72/1f5e8.png"
 		},
 		timestamp:new Date()
 	}})
@@ -77,7 +80,7 @@ function logError(cmd,msg,args,error){
 			{name:"Command",value:cmd,inline:true},
 			{name:"Arguments",value:args ? args : "none",inline:true},
 			{name:"User ID",value:""+msg.author.id,inline:true},
-			{name:msg.guild ? msg.guild.name : "Private Message",value:msg.guild ? ""+msg.guild.id : ""+msg.author.id,inline:true},
+			{name:msg.channel.guild ? msg.channel.guild.name : "Private Message",value:msg.channel.guild ? ""+msg.channel.guild.id : ""+msg.author.id,inline:true},
 			{name:msg.channel.name ? "#"+msg.channel.name : msg.author.username,value:""+msg.channel.id,inline:true},
 			{name:"Error",value:"```\n"+error+"```",inline:true}
 		],
@@ -86,7 +89,7 @@ function logError(cmd,msg,args,error){
 			icon_url:"https://flexbox.xyz/discord/twemoji/36x36/1f552.png"
 		},
 		thumbnail:{
-			url:msg.guild ? "https://cdn.discordapp.com/icons/"+msg.guild.id+"/"+msg.guild.icon+".jpg" : "https://flexbox.xyz/discord/twemoji/72x72/1f5e8.png"
+			url:msg.channel.guild ? "https://cdn.discordapp.com/icons/"+msg.channel.guild.id+"/"+msg.channel.guild.icon+".jpg" : "https://flexbox.xyz/discord/twemoji/72x72/1f5e8.png"
 		},
 		timestamp:new Date()
 	}})
@@ -110,7 +113,7 @@ var cmds = {
 				res.push("\t\u2022 "+c.name+" - "+c.desc)
 			}
 
-			if(msg.guild) msg.channel.createMessage(emoji.get("envelope_with_arrow")+" Sending help via DM.");
+			if(msg.channel.guild) msg.channel.createMessage(emoji.get("envelope_with_arrow")+" Sending help via DM.");
 			bot.getDMChannel(msg.author.id)
 			.then((c)=>{
 				bot.createMessage(c.id,"__**FlexBot Commands**__\n"+((res.join("\n")).length > 1998-24 ? (res.join("\n")).substring(0,1998-24) : (res.join("\n"))));
@@ -286,10 +289,10 @@ flexbot.awaitForMessage = function(msg,display,callback,timeout) {
 	if (!flexbot.awaitMsgs.hasOwnProperty(msg.channel.id)){
 		flexbot.awaitMsgs[msg.channel.id] = {}
 	}
-	if (flexbot.awaitMsgs[msg.channel.id][msg.author.id]) {
-		clearTimeout(flexbot.awaitMsgs[msg.channel.id][msg.author.id].timer);
+	if (flexbot.awaitMsgs[msg.channel.id][msg.id]) {
+		clearTimeout(flexbot.awaitMsgs[msg.channel.id][msg.id].timer);
 	}
-	flexbot.awaitMsgs[msg.channel.id][msg.author.id] = {
+	flexbot.awaitMsgs[msg.channel.id][msg.id] = {
 		time:msg.timestamp,
 		botmsg:dispMsg
 	}
@@ -307,14 +310,14 @@ flexbot.awaitForMessage = function(msg,display,callback,timeout) {
 						response = true;
 					if(response){
 						bot.removeListener("messageCreate",func);
-						clearTimeout(flexbot.awaitMsgs[msg.channel.id][msg.author.id].timer);
+						clearTimeout(flexbot.awaitMsgs[msg.channel.id][msg.id].timer);
 						resolve(msg2);
 					}
 				}
 			}
 			bot.on("messageCreate",func);
-
-			flexbot.awaitMsgs[msg.channel.id][msg.author.id].timer = setTimeout(()=>{
+			flexbot.awaitMsgs[msg.channel.id][msg.id].func = func;
+			flexbot.awaitMsgs[msg.channel.id][msg.id].timer = setTimeout(()=>{
 				bot.removeListener("messageCreate",func)
 				msg.channel.createMessage("Query canceled.");
 				reject("Request timed out.");
@@ -332,8 +335,8 @@ flexbot.lookupUser = function(msg,str){
 		}
 
 		let userpool = [];
-		if(msg.guild){
-			msg.guild.members.forEach(m=>{
+		if(msg.channel.guild){
+			msg.channel.guild.members.forEach(m=>{
 				if(m.username.toLowerCase().indexOf(str.toLowerCase()) > -1 || m.nick && m.nick.toLowerCase().indexOf(str.toLowerCase()) > -1){
 					if(m.username.toLowerCase() == str.toLowerCase() || m.nick && m.nick.toLowerCase() == str.toLowerCase()){
 						userpool = [m];
@@ -359,19 +362,21 @@ flexbot.lookupUser = function(msg,str){
 				let a = [];
 				let u = 0;
 				for(let i=0;i<(userpool.length > 20 ? 20 : userpool.length);i++){
-					a.push("["+(i+1)+"] "+userpool[i].username+"#"+userpool[i].discriminator+(msg.guild ? (userpool[i].nick ? " ("+userpool[i].nick+")" : "") : ""))
+					a.push("["+(i+1)+"] "+userpool[i].username+"#"+userpool[i].discriminator+(msg.channel.guild ? (userpool[i].nick ? " ("+userpool[i].nick+")" : "") : ""))
 				}
 				flexbot.awaitForMessage(msg,"Multiple users found. Please pick from this list. \n```ini\n"+a.join("\n")+"\n\n[c] Cancel```",(m)=>{
 					let value = parseInt(m.content)
 					if(m.content == "c"){
-						msg.channel.createMessage("Canceled.")
-						reject("Canceled.")
+						 msg.channel.createMessage("Canceled.");
+						 reject("Canceled");
+						 bot.removeListener("messageCreate",flexbot.awaitMsgs[msg.channel.id][msg.id].func);
 					}else if(m.content == value){
-						resolve(userpool[value-1])
+						resolve(userpool[value-1]);
+						bot.removeListener("messageCreate",flexbot.awaitMsgs[msg.channel.id][msg.id].func);
 					}
-					clearTimeout(flexbot.awaitMsgs[msg.channel.id][msg.author.id].timer);
+					clearTimeout(flexbot.awaitMsgs[msg.channel.id][msg.id].timer);
 				},30000).then(r=>{
-					resolve(r)
+					resolve(r);
 				});
 			}else{
 				resolve(userpool[0])
@@ -391,37 +396,21 @@ for(f of files){
 	console.log("Loaded Module: "+f)
 };
 
-let responses = {
-	"how are you":[
-		"I'm good.",
-		"Things could be better.",
-	],
-	"hi":[
-		"Hello.",
-		"Hai! ^.^",
-		"Heya",
-		"Hi",
-	]
-}
-
-let nemimode = false;
-
 var prefix = flexbot.prefix;
-var prefix2 = flexbot.prefix2;
 bot.on("messageCreate",(msg) => {
 	if(!msg.author.bot){
-		var prefix3 = flexbot.bot.user.mention;
+		var prefix2 = flexbot.bot.user.mention;
 		var c = msg.content.split(" ")
-		var args = c.splice((msg.content.substring(0,prefix3.length) == prefix3 ? 2 : 1),c.length).join(" ")
+		var args = c.splice((msg.content.substring(0,prefix2.length) == prefix2 ? 2 : 1),c.length).join(" ")
 		var cmd = c[0]
-		if(msg.content.substring(0,prefix3.length) == prefix3) cmd=c.splice(0,2).join(" ");
+		if(msg.content.substring(0,prefix2.length) == prefix2) cmd=c.splice(0,2).join(" ");
 
 		let hasRan = false;
 
 		for(item in cmds){
 			if(cmds[item].aliases.length > 0){
 				for(n in cmds[item].aliases){
-					if(cmd == prefix+cmds[item].aliases[n] || cmd == prefix2+cmds[item].aliases[n] || cmd == prefix3+" "+cmds[item].aliases[n] || cmd == prefix+cmds[item].name || cmd == prefix2+cmds[item].name || cmd == prefix3+" "+cmds[item].name){
+					if(cmd == prefix+cmds[item].aliases[n] || cmd == prefix2+" "+cmds[item].aliases[n] || cmd == prefix+cmds[item].name || cmd == prefix2+" "+cmds[item].name){
 						if(hasRan == true) return;
 						try{
 							logCommand(cmd,msg,args)
@@ -434,7 +423,7 @@ bot.on("messageCreate",(msg) => {
 						hasRan = true
 					}
 				}
-			}else if(cmd == prefix+cmds[item].name || cmd == prefix2+cmds[item].name || cmd == prefix3+" "+cmds[item].name){
+			}else if(cmd == prefix+cmds[item].name || cmd == prefix2+" "+cmds[item].name){
 					if(hasRan == true) return;
 					try{
 						logCommand(cmd,msg,args)
@@ -453,50 +442,10 @@ bot.on("messageCreate",(msg) => {
 			setTimeout(process.exit,1000)
 		}
 	}
-
-	if(msg.author.id != bot.user.id){
-		let c = msg.content.split(" ");
-		let args = c.splice(1,c.length).join(" ");
-		let prefix = c[0];
-		let u = msg.guild ? msg.guild.members.get(bot.user.id) : bot.user
-		if(prefix.toLowerCase() == "ren,"){
-			if(args.length == 0) return;
-			if(args.toLowerCase() == "hi" || args.toLowerCase() == "hey" || args.toLowerCase() == "hello"){
-				let r = Math.floor(Math.random()*responses["hi"].length);
-				msg.channel.createMessage(responses["hi"][r]);
-			}else if(args.toLowerCase() == "how are you"){
-				let r = Math.floor(Math.random()*responses["how are you"].length);
-				msg.channel.createMessage(responses["how are you"][r]);
-			}else if(args.toLowerCase() == "talk to nemi"){
-				msg.channel.createMessage("Okay now talking to Nemi in <#268539905704067072>");
-				bot.createMessage("268539905704067072","Hi Nemi, hows my favorite girl?");
-				nemimode = true;
-			}else if(args.toLowerCase() == "stop talking to nemi"){
-				msg.channel.createMessage("Okay no longer talking to Nemi.");
-				nemimode = false;
-			}else if(args.toLowerCase() == "markov stats"){
-				msg.channel.createMessage("todo");
-			}else{
-				fs.appendFileSync(__dirname+"/markov.txt",args+"\n")
-				let gen = new markov(fs.readFileSync(__dirname+"/markov.txt","utf-8"));
-
-				msg.channel.createMessage(gen.generate(1));
-			}
-		}
-
-		if(msg.channel.id == "268539905704067072" && nemimode == true && msg.author.id == "196116237623885824"){
-			setTimeout(()=>{
-				let gen = new markov(fs.readFileSync(__dirname+"/markov.txt","utf-8"));
-
-				msg.channel.createMessage(gen.generate(1));
-			},6000)
-		}
-	}
 });
 
-bot.on("guildCreate",async function(s){
+bot.on("guildCreate",function(s){
 		let bots = 0;
-		let inv = (await s.defaultChannel.createInvite()).code
 		s.members.forEach(m=>{if(m.bot) ++bots;})
 			bot.createMessage(logid,{embed:{
 				author:{
@@ -507,8 +456,7 @@ bot.on("guildCreate",async function(s){
 				fields:[
 					{name:"Owner",value:s.members.get(s.ownerID).username+"#"+s.members.get(s.ownerID).discriminator,inline:true},
 					{name:"Members",value:s.memberCount,inline:true},
-					{name:"Bots",value:bots+" ("+Math.floor((bots/s.memberCount)*100)+"%)",inline:true},
-					{name:"Invite",value:"["+emoji.get(":inbox_tray:")+"](https://discord.gg/"+inv+")",inline:true}
+					{name:"Bots",value:bots+" ("+Math.floor((bots/s.memberCount)*100)+"%)",inline:true}
 				],
 				footer:{
 					text:"Time",
@@ -545,5 +493,13 @@ bot.on("guildDelete",s=>{
 	request.post("https://bots.discord.pw/api/bots/"+bot.user.id+"/stats",{headers:{"Authorization":config.dbotsapi},json:{server_count:bot.guilds.size}});
 	request.post("https://www.carbonitex.net/discord/data/botdata.php",{headers:{"Content-Type":"application/json"},json:{key:config.carbonkey,servercount:bot.guilds.size}});
 })
+
+process.on("unhandledRejection",err=>{
+	console.log("Uncaught rejection:\n"+err.stack);
+	bot.getDMChannel(config.ownerid)
+	.then((c)=>{
+		bot.createMessage(c.id,"Uncaught rejection:\n```\n"+err.stack+"\n```");
+	})
+});
 
 bot.connect();

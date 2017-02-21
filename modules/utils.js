@@ -67,8 +67,12 @@ flexbot.addCommand("mods","Moderator list",function(msg,args){
 flexbot.addCommand("purge","Purge/clean x messages from a channel",function(msg,args){
 	if(msg.channel.permissionsOf(msg.author.id).has("manageMessages")){
 		if(msg.channel.permissionsOf(flexbot.bot.user.id).has("manageMessages")){
-			if(args && parseInt(args) > 0){
-				flexbot.bot.getMessages(msg.channel.id,parseInt(args))
+			let a = args.split(" ");
+			if(a[0] != "all" && a[0] != "user" && a[0] != "filter" && a[0] != "bots"){
+				msg.channel.createMessage("__Prune Usage__\n \u2022 `all <count>` - Removes x messsges\n \u2022 `user <user> <count>` - Removes x messages from a user\n \u2022 `filter <string> <count>` - Removes x messages containing a string\n \u2022 `bots <count>` - Removes x messages from bots");
+			}else if(a[0] == "all"){
+				if(a[1] && parseInt(a[1]) > 0){
+				flexbot.bot.getMessages(msg.channel.id,parseInt(a[1])+1)
 				.then((msgs)=>{
 					var ids = [];
 					for (i = 0; i < msgs.length; i++) {
@@ -77,14 +81,38 @@ flexbot.addCommand("purge","Purge/clean x messages from a channel",function(msg,
 					flexbot.bot.deleteMessages(msg.channel.id, ids);
 				})
 
-				msg.channel.createMessage("Cleaned "+args+" messages.")
+				msg.channel.createMessage("Cleaned "+a[1]+" messages.")
 				.then((m)=>{
 					setTimeout(()=>{
 						flexbot.bot.deleteMessage(msg.channel.id,m.id)
 					},5000)
 				})
-			}else{
-				msg.channel.createMessage("Amount not specified or lower than 1.")
+				}else{
+					msg.channel.createMessage("Amount not specified or lower than 1.")
+				}
+			}else if(a[0] && a[0] == "bots"){
+			let count = a[1] ? parseInt(a[1]) : 20;
+			let cur = 0;
+				flexbot.bot.getMessages(msg.channel.id,50+count)
+				.then((msgs)=>{
+					var ids = [];
+					for (i = 0; i < msgs.length; i++) {
+						if(msgs[i].author.bot == true){
+							if(cur < count+1){
+								ids.push(msgs[i].id);
+								cur++
+							}
+						}
+					}
+					flexbot.bot.deleteMessages(msg.channel.id, ids);
+				})
+
+				msg.channel.createMessage("Cleaned "+count+" bot messages.")
+				.then((m)=>{
+					setTimeout(()=>{
+						flexbot.bot.deleteMessage(msg.channel.id,m.id)
+					},5000)
+				})
 			}
 		}else{
 			msg.channel.createMessage("I do not have Manage Messages permission.")
@@ -135,18 +163,13 @@ flexbot.addCommand("emoji","Get an image of an emoji/custom emote.",async functi
 				url:"https://cdn.discordapp.com/emojis/"+eid+".png"
 			}
 		}})
-	}else if(emoji.which(args) || emoji.get(args)){
-			let e = emoji.which(args);
-			if(!emoji.which(args)){
-				e = emoji.which(emoji.get(args.replace(" ","_")))
-			}
-			if(e){
-			let twemoji = require("twemoji")
-			let ehex = twemoji.convert.toCodePoint(emoji.get(e))
-			let baseurl = "https://flexbox.xyz/discord/twemoji"
+	}else{
+			let twemoji = require("twemoji");
+			let ehex = twemoji.convert.toCodePoint(args);
+			let baseurl = "https://flexbox.xyz/discord/twemoji";
 
 			msg.channel.createMessage({embed:{
-				title:e,
+				title:"Emoji Info",
 				fields:[
 					{name:"Hex Code",value:ehex},
 					{name:"Image",value:"[SVG]("+baseurl+"/svg/"+ehex+".svg) | [36x36]("+baseurl+"/36x36/"+ehex+".png) | [72x72]("+baseurl+"/72x72/"+ehex+".png)"}
@@ -155,11 +178,6 @@ flexbot.addCommand("emoji","Get an image of an emoji/custom emote.",async functi
 					url:baseurl+"/72x72/"+ehex+".png"
 				}
 			}})
-			}else{
-				msg.channel.createMessage("Emoji not found.")
-			}
-	}else{
-		msg.channel.createMessage("Emoji not found.")
 	}
 },["emote","e"])
 
@@ -373,7 +391,7 @@ flexbot.addCommand("bots","Get bots of a user",function(msg,args){
 	});
 })
 
-let lookupRole = function(msg,str){
+flexbot.lookupRole = function(msg,str){
 	return new Promise((resolve,reject)=>{
 		if(/[0-9]{17,21}/.test(str)){
 			resolve( msg.guild.roles.get(str.match(/[0-9]{17,21}/)[0]) )
@@ -391,17 +409,18 @@ let lookupRole = function(msg,str){
 				let a = [];
 				let u = 0;
 				for(let i=0;i<(userpool.length > 50 ? 50 : userpool.length);i++){
-					a.push(i+". "+userpool[i].name)
+					a.push("["+(i+1)+"] "+userpool[i].name)
 				}
-				flexbot.awaitForMessage(msg,"Multiple roles found. Please pick from this list. \n```md\n"+a.join("\n")+"\n# Type `c` to cancel```",(m)=>{
+				flexbot.awaitForMessage(msg,"Multiple roles found. Please pick from this list. \n```ini\n"+a.join("\n")+"\n\n[c] Cancel```",(m)=>{
 					let value = parseInt(m.content)
 					if(m.content == "c"){
-						msg.channel.createMessage("Canceled.")
-						reject("Canceled.")
+						 msg.channel.createMessage("Canceled.");
+						 reject("Canceled");
+						 bot.removeListener("messageCreate",flexbot.awaitMsgs[msg.channel.id][msg.id].func);
 					}else if(m.content == value){
-						resolve(userpool[value])
+						resolve(userpool[value-1])
 					}
-					clearTimeout(flexbot.awaitMsgs[msg.channel.id][msg.author.id].timer);
+					clearTimeout(flexbot.awaitMsgs[msg.channel.id][msg.id].timer);
 				},30000).then(r=>{
 					resolve(r)
 				});
@@ -421,7 +440,7 @@ flexbot.addCommand("rinfo","Get info on a guild role.",function(msg,args){
 	if(!msg.guild){
 		msg.channel.createMessage("Can only be used in a guild.")
 	}else{
-		lookupRole(msg,args ? args : "")
+		flexbot.lookupRole(msg,args ? args : "")
 		.then(r=>{
 			let users = 0;
 			let bots = 0;
@@ -465,15 +484,17 @@ flexbot.addCommand("rinfo","Get info on a guild role.",function(msg,args){
 flexbot.addCommand("shared","Gets how many servers shared of a user.",function(msg,args){
 	flexbot.lookupUser(msg,args ? args : msg.author.mention)
 	.then(u=>{
-		let shared = 0;
+		let shared = [];
 		flexbot.bot.guilds.forEach(g=>{
-			if(g.members.get(u.id)) shared++;
+			if(g.members.get(u.id)){
+				shared.push(g.name);
+			}
 		});
 
 		if(u.id == flexbot.bot.user.id){
 			msg.channel.createMessage("I'm in "+flexbot.bot.guilds.size+" servers with myself thank you very much.")
 		}else{
-			msg.channel.createMessage("**"+u.username+"#"+u.discriminator+"** shares **"+shared+" server(s)** with FlexBot.")
+			msg.channel.createMessage("**"+u.username+"#"+u.discriminator+"** shares **"+shared.length+" server(s)** with FlexBot.\n```\n"+shared.join("\n")+"\n```");
 		}
 	});
 });
@@ -558,7 +579,7 @@ flexbot.addCommand("binvite","Gets invite of a bot",function(msg,args){
 	});
 });
 
-flexbot.addCommand("whoowns","Gets owners of a bot",function(msg,args){
+flexbot.addCommand("owner","Gets owners of a bot",function(msg,args){
 	flexbot.lookupUser(msg,args ? args : msg.author.mention)
 	.then(u=>{
 		if(!u.bot){ msg.channel.createMessage("User is not a bot!"); return }
@@ -609,7 +630,7 @@ let langs = {
 	"custom library" : "¯\\_(ツ)_/¯"
 }
 
-flexbot.addCommand("whatlib","Gets the used library of a bot",function(msg,args){
+flexbot.addCommand("lib","Gets the used library of a bot",function(msg,args){
 	flexbot.lookupUser(msg,args ? args : msg.author.mention)
 	.then(u=>{
 		if(!u.bot){ msg.channel.createMessage("User is not a bot!"); return }
@@ -640,4 +661,22 @@ flexbot.addCommand("raffle","Choose a random user",function(msg,args){
 	let u = pool[Math.floor(Math.random()*pool.length)];
 	
 	msg.channel.createMessage("I choose **"+u.username+"#"+u.discriminator+"**"+(u.nick ? " ("+u.nick+")" : ""))
+});
+
+flexbot.addCommand("yt","Look up a YouTube video.",function(msg,args){
+	if(!args){
+		msg.channel.createMessage("Arguments are required!");
+	}else{
+		request.get("https://www.googleapis.com/youtube/v3/search?key="+flexbot.gapikey+"&maxResults=3&part=snippet&type=video&q="+encodeURIComponent(args),(err,res,body)=>{
+		if(!err && res.statusCode == 200){
+			let data = JSON.parse(body).items;
+			
+			msg.channel.createMessage({embed:{
+				title:"Results for **"+args+"**",
+				color:0xcd201f,
+				description:"["+data[0].snippet.title+"](https://youtu.be/"+data[0].id.videoId+")\n**Uploaded by:** "+data[0].snippet.channelTitle+"\n```\n"+data[0].snippet.description+"\n```\n\n["+data[1].snippet.title+"](https://youtu.be/"+data[1].id.videoId+")\n**Uploaded by:** "+data[1].snippet.channelTitle+"\n```\n"+data[1].snippet.description+"\n```\n\n["+data[2].snippet.title+"](https://youtu.be/"+data[2].id.videoId+")\n**Uploaded by:** "+data[2].snippet.channelTitle+"\n```\n"+data[2].snippet.description+"\n```"
+				}});
+			}
+		});
+	}
 });
